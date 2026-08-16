@@ -1,0 +1,74 @@
+/*
+ * Sidebar-foot API usage panel. The footer action slot is a flex row shared
+ * with the full-width Cordis panel; wrap the container so each occupant gets
+ * its own line, then take the full width. `data-slot` is the renderer's
+ * addressable seam (see the slot system standard).
+ */
+:global(div:has(> [data-slot='sidebar.footer.action'])) {
+  flex-wrap: wrap;
+}
+
+.panel {
+  flex: none;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.title {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+  letter-spacing: 0.02em;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.label {
+  flex: none;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.value {
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.errorValue {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.rail {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: 0 0 8px;
+  border-radius: 50%;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
