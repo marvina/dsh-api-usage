@@ -6,7 +6,8 @@ export const NS = 'apiUsage'
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
   'panel.title': 'API 用量',
-  'panel.balance': '本 API 余额',
+  'panel.balance': 'API 余额',
+  'panel.balanceUnavailable': '暂不支持',
   'panel.today': '今日用量',
   'panel.session': '本次对话用量',
   'panel.failed': '获取失败',
@@ -20,7 +21,8 @@ export type ApiUsageKey = keyof typeof zh
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
   'panel.title': 'API Usage',
-  'panel.balance': 'Balance',
+  'panel.balance': 'API balance',
+  'panel.balanceUnavailable': 'Not supported',
   'panel.today': 'Today',
   'panel.session': 'This chat',
   'panel.failed': 'Unavailable',

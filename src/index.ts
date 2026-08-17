@@ -8,7 +8,10 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-credentials'
 // Type-only: ctx.shell Context merge.
 import type {} from '@deepseek-ai/dsh-shell'
+// Type-only: ctx.sessionProjections Context merge.
+import type {} from '@deepseek-ai/dsh-session-projection'
 import { fetchApiBalance } from './balance.ts'
+import { providerTokenUsageProjectionDefinition } from './provider-usage-projection.ts'
 import {
   API_USAGE_BALANCE_PATH, API_USAGE_SETTINGS_NAMESPACE, ApiUsageSettingsSchema,
 } from './settings.ts'
@@ -18,6 +21,7 @@ export {
   DEFAULT_API_USAGE_ENABLED, type ApiUsageSettings,
 } from './settings.ts'
 export type { ApiUsageBalanceResult } from './types.ts'
+export type { ProviderTokenBuckets, ProviderTokenUsageProjection } from './provider-usage-projection.ts'
 
 const NAMESPACE = settingsNamespace(API_USAGE_SETTINGS_NAMESPACE)
 
@@ -27,6 +31,9 @@ const NAMESPACE = settingsNamespace(API_USAGE_SETTINGS_NAMESPACE)
  * @param ctx - Host context that may acquire the settings and web-server services.
  */
 export function apply(ctx: Context): void {
+  ctx.inject(['sessionProjections'], (projectionCtx) => {
+    projectionCtx.sessionProjections.register(providerTokenUsageProjectionDefinition)
+  })
   ctx.inject(['settings'], (settingsCtx) => {
     settingsCtx.settings.register(NAMESPACE, ApiUsageSettingsSchema)
   })

@@ -36,11 +36,19 @@ const SESSIONS: SessionListState = {
       running: false,
       updatedAt: Date.now(),
       projectionValues: {
-        tokenUsage: {
-          uncachedInputTokens: 10,
-          outputTokens: 20,
-          cacheReadTokens: 5,
-          cacheWriteTokens: 3,
+        providerTokenUsage: {
+          deepseek: {
+            uncachedInputTokens: 10,
+            outputTokens: 20,
+            cacheReadTokens: 5,
+            cacheWriteTokens: 3,
+          },
+          openai: {
+            uncachedInputTokens: 100,
+            outputTokens: 50,
+            cacheReadTokens: 25,
+            cacheWriteTokens: 0,
+          },
         },
       },
     },
@@ -65,14 +73,42 @@ function panelProps(overrides: Partial<ApiUsagePanelProps> = {}): ApiUsagePanelP
 }
 
 describe('ApiUsagePanel', () => {
-  it('renders the balance and both token rows in wide mode', () => {
+  it('renders balances and usage independently for each provider', () => {
     render(<ApiUsagePanel {...panelProps()} />)
     expect(screen.getByText('API 用量')).toBeTruthy()
-    expect(screen.getByText('本 API 余额')).toBeTruthy()
+    expect(screen.getByText('DeepSeek')).toBeTruthy()
+    expect(screen.getByText('OpenAI')).toBeTruthy()
+    expect(screen.getAllByText('API 余额')).toHaveLength(2)
     expect(screen.getByText('¥110.00')).toBeTruthy()
-    expect(screen.getByText('今日用量')).toBeTruthy()
+    expect(screen.getByText('暂不支持')).toBeTruthy()
+    expect(screen.getAllByText('今日用量')).toHaveLength(2)
     expect(screen.getAllByText('38 tokens')).toHaveLength(2)
-    expect(screen.getByText('本次对话用量')).toBeTruthy()
+    expect(screen.getAllByText('175 tokens')).toHaveLength(2)
+    expect(screen.getAllByText('本次对话用量')).toHaveLength(2)
+  })
+
+  it('falls back to legacy token usage as DeepSeek usage', () => {
+    const legacySessions = {
+      ...SESSIONS,
+      byId: {
+        s1: {
+          ...SESSIONS.byId.s1,
+          projectionValues: {
+            tokenUsage: {
+              uncachedInputTokens: 10,
+              outputTokens: 20,
+              cacheReadTokens: 5,
+              cacheWriteTokens: 3,
+            },
+          },
+        },
+      },
+    } as unknown as SessionListState
+
+    render(<ApiUsagePanel {...panelProps({ useSessions: selectorHook(legacySessions) })} />)
+    expect(screen.getByText('DeepSeek')).toBeTruthy()
+    expect(screen.queryByText('OpenAI')).toBeNull()
+    expect(screen.getAllByText('38 tokens')).toHaveLength(2)
   })
 
   it('renders nothing while disabled', () => {
