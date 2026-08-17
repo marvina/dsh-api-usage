@@ -48,6 +48,17 @@
   color: var(--dsw-alias-label-primary);
 }
 
+.modelGroup {
+  margin: 4px 0 0;
+}
+
+.modelName {
+  margin: 0 0 1px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+}
+
 .row {
   display: flex;
   align-items: baseline;

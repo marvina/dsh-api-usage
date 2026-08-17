@@ -10,8 +10,8 @@ function event<T extends SessionEvent['type']>(
   return { type, data, seq: seq++, time: Date.now() } as SessionEvent
 }
 
-const header = (provider: string) => event('request/header', {
-  header: { config: { provider, model: `${provider}-model` } },
+const header = (provider: string, model = `${provider}-model`) => event('request/header', {
+  header: { config: { provider, model } },
   reason: 'change',
 })
 
@@ -33,7 +33,7 @@ const assistantUsage = (
 })
 
 describe('providerTokenUsageProjectionDefinition', () => {
-  it('attributes usage to the provider active for each request', () => {
+  it('attributes usage to the provider and model active for each request', () => {
     let state = projection.init()
     state = projection.apply(state, header('deepseek-official'))
     state = projection.apply(state, assistantUsage(1, 1, 10, 5))
@@ -42,16 +42,45 @@ describe('providerTokenUsageProjectionDefinition', () => {
 
     expect(projection.view(state)).toEqual({
       'deepseek-official': {
-        uncachedInputTokens: 10,
-        outputTokens: 5,
-        cacheReadTokens: 0,
-        cacheWriteTokens: 0,
+        'deepseek-official-model': {
+          uncachedInputTokens: 10,
+          outputTokens: 5,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+        },
       },
       openai: {
-        uncachedInputTokens: 20,
-        outputTokens: 8,
-        cacheReadTokens: 0,
-        cacheWriteTokens: 0,
+        'openai-model': {
+          uncachedInputTokens: 20,
+          outputTokens: 8,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+        },
+      },
+    })
+  })
+
+  it('keeps usage separated by model within one provider', () => {
+    let state = projection.init()
+    state = projection.apply(state, header('deepseek-official', 'flash'))
+    state = projection.apply(state, assistantUsage(1, 1, 10, 5))
+    state = projection.apply(state, header('deepseek-official', 'pro'))
+    state = projection.apply(state, assistantUsage(2, 1, 20, 8))
+
+    expect(projection.view(state)).toEqual({
+      'deepseek-official': {
+        flash: {
+          uncachedInputTokens: 10,
+          outputTokens: 5,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+        },
+        pro: {
+          uncachedInputTokens: 20,
+          outputTokens: 8,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+        },
       },
     })
   })
@@ -62,7 +91,7 @@ describe('providerTokenUsageProjectionDefinition', () => {
     state = projection.apply(state, usageChunk(1, 1, 10, 2))
     state = projection.apply(state, assistantUsage(1, 1, 12, 5))
 
-    expect(projection.view(state)['deepseek-official']).toEqual({
+    expect(projection.view(state)['deepseek-official']['deepseek-official-model']).toEqual({
       uncachedInputTokens: 12,
       outputTokens: 5,
       cacheReadTokens: 0,
@@ -70,7 +99,7 @@ describe('providerTokenUsageProjectionDefinition', () => {
     })
   })
 
-  it('normalizes legacy and official DeepSeek provider ids into one key', () => {
+  it('normalizes legacy and official DeepSeek provider ids into one provider key', () => {
     let state = projection.init()
     state = projection.apply(state, header('deepseek'))
     state = projection.apply(state, assistantUsage(1, 1, 10, 5))
@@ -79,9 +108,15 @@ describe('providerTokenUsageProjectionDefinition', () => {
 
     const view = projection.view(state)
     expect(Object.keys(view)).toEqual(['deepseek-official'])
-    expect(view['deepseek-official']).toEqual({
-      uncachedInputTokens: 30,
-      outputTokens: 13,
+    expect(view['deepseek-official']['deepseek-model']).toEqual({
+      uncachedInputTokens: 10,
+      outputTokens: 5,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+    })
+    expect(view['deepseek-official']['deepseek-official-model']).toEqual({
+      uncachedInputTokens: 20,
+      outputTokens: 8,
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
     })

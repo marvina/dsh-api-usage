@@ -21,6 +21,8 @@ export interface ApiUsagePanelInjected {
     balance: SnapshotStore<ApiUsageBalanceResult | null>
     /** Configured provider display names, keyed by provider route id. */
     providers: SnapshotStore<Record<string, string>>
+    /** Configured model display names, keyed by provider route id, then model id. */
+    models: SnapshotStore<Record<string, Record<string, string>>>
   }
   /** Trigger one DeepSeek balance refresh. */
   refreshBalance: () => void
@@ -84,32 +86,37 @@ function usageOf(row: SessionRow | undefined): ProviderTokenUsageProjection {
   const values = row?.projectionValues
   const byProvider = values?.providerTokenUsage as ProviderTokenUsageProjection | undefined
   if (byProvider != null && Object.keys(byProvider).length > 0) {
-    const merged: Record<string, ProviderTokenBuckets> = {}
-    for (const [provider, buckets] of Object.entries(byProvider)) {
+    const merged: Record<string, Record<string, ProviderTokenBuckets>> = {}
+    for (const [provider, models] of Object.entries(byProvider)) {
       const key = canonicalProvider(provider)
-      merged[key] = merged[key] == null ? buckets : addBuckets(merged[key], buckets)
+      merged[key] ??= {}
+      for (const [model, buckets] of Object.entries(models)) {
+        merged[key][model] = merged[key][model] == null ? buckets : addBuckets(merged[key][model], buckets)
+      }
     }
     return merged
   }
 
   const legacy = values?.tokenUsage as ProviderTokenBuckets | undefined
-  return legacy == null ? {} : { 'deepseek-official': legacy }
+  return legacy == null ? {} : { 'deepseek-official': { '': legacy } }
 }
 
-function todayTokens(byId: SessionListState['byId'], provider: string): number | null {
+function todayTokens(
+  byId: SessionListState['byId'], provider: string, model: string,
+): number | null {
   let total: number | null = null
   for (const row of Object.values(byId)) {
     if (row == null || !isSameDay(row.updatedAt)) continue
-    const tokens = tokenTotal(usageOf(row)[provider])
+    const tokens = tokenTotal(usageOf(row)[provider]?.[model])
     if (tokens != null) total = (total ?? 0) + tokens
   }
   return total
 }
 
 function currentTokens(
-  byId: SessionListState['byId'], currentId: SessionId | undefined, provider: string,
+  byId: SessionListState['byId'], currentId: SessionId | undefined, provider: string, model: string,
 ): number | null {
-  return currentId == null ? null : tokenTotal(usageOf(byId[currentId])[provider])
+  return currentId == null ? null : tokenTotal(usageOf(byId[currentId])[provider]?.[model])
 }
 
 function providerName(provider: string): string {
@@ -127,14 +134,40 @@ function displayNameOf(provider: string, names: Readonly<Record<string, string>>
   return configured != null && configured.length > 0 ? configured : providerName(provider)
 }
 
+function modelDisplayName(
+  provider: string,
+  model: string,
+  names: Readonly<Record<string, Readonly<Record<string, string>>>>,
+): string {
+  if (model.length === 0) return ''
+  const configured = names[provider]?.[model]
+  if (configured != null && configured.length > 0) return configured
+  return model.replace(/(^|[-_ ])([a-z])/g, (_, space, char: string) => `${space}${char.toUpperCase()}`)
+}
+
+function modelsIn(byId: SessionListState['byId'], provider: string): string[] {
+  const models = new Set<string>()
+  for (const row of Object.values(byId)) {
+    const buckets = usageOf(row)[provider]
+    if (buckets == null) continue
+    for (const model of Object.keys(buckets)) models.add(model)
+  }
+  return [...models].sort((left, right) => left.localeCompare(right))
+}
+
 function providersIn(
   byId: SessionListState['byId'],
   names: Readonly<Record<string, string>>,
 ): string[] {
   const providers = new Set<string>(['deepseek-official'])
   for (const row of Object.values(byId)) {
-    for (const [provider, buckets] of Object.entries(usageOf(row))) {
-      if ((tokenTotal(buckets) ?? 0) > 0) providers.add(provider)
+    for (const [provider, models] of Object.entries(usageOf(row))) {
+      for (const buckets of Object.values(models)) {
+        if ((tokenTotal(buckets) ?? 0) > 0) {
+          providers.add(provider)
+          break
+        }
+      }
     }
   }
   return [...providers].sort((left, right) => {
@@ -152,11 +185,12 @@ function tokensText(tokens: number | null): string {
 
 /** Render the API usage panel, grouped by each provider observed in session usage. */
 export function ApiUsagePanel({
-  wide, useSessions, useEnabled, useBalance, useProviders, refreshBalance, t,
+  wide, useSessions, useEnabled, useBalance, useProviders, useModels, refreshBalance, t,
 }: ApiUsagePanelProps) {
   const enabled = useEnabled(s => s)
   const balance = useBalance(s => s)
   const providers = useProviders(s => s)
+  const models = useModels(s => s)
   const currentId = useSessions(s => s.current)
   const byId = useSessions(s => s.byId)
 
@@ -181,37 +215,39 @@ export function ApiUsagePanel({
       <div className={css.title}>{t('panel.title')}</div>
       {providersIn(byId, providers).map((provider, index) => {
         const isDeepSeek = provider === 'deepseek-official'
-        const rows = [
-          {
-            key: 'balance',
-            label: t('panel.balance'),
-            value: isDeepSeek
-              ? deepSeekBalance ?? (balance?.ok === false ? t('panel.failed') : '…')
-              : t('panel.balanceUnavailable'),
-            error: isDeepSeek && balance?.ok === false,
-            detail: isDeepSeek && balance?.ok === false ? balance.error : undefined,
-          },
-          { key: 'today', label: t('panel.today'), value: tokensText(todayTokens(byId, provider)) },
-          {
-            key: 'session',
-            label: t('panel.session'),
-            value: tokensText(currentTokens(byId, currentId, provider)),
-          },
-        ]
+        const balanceValue = isDeepSeek
+          ? deepSeekBalance ?? (balance?.ok === false ? t('panel.failed') : '…')
+          : t('panel.balanceUnavailable')
+        const balanceError = isDeepSeek && balance?.ok === false
+        const balanceDetail = balanceError ? balance.error : undefined
         return (
           <section key={provider} className={index === 0 ? css.provider : `${css.provider} ${css.providerDivider}`}>
             <div className={css.providerName}>{displayNameOf(provider, providers)}</div>
-            {rows.map(row => (
-              <div key={row.key} className={css.row}>
-                <span className={css.label}>{row.label}</span>
-                <span
-                  className={row.error ? `${css.value} ${css.errorValue}` : css.value}
-                  title={row.detail}
-                >
-                  {row.value}
-                </span>
-              </div>
-            ))}
+            <div className={css.row}>
+              <span className={css.label}>{t('panel.balance')}</span>
+              <span
+                className={balanceError ? `${css.value} ${css.errorValue}` : css.value}
+                title={balanceDetail}
+              >
+                {balanceValue}
+              </span>
+            </div>
+            {modelsIn(byId, provider).map(model => {
+              const label = modelDisplayName(provider, model, models)
+              return (
+                <div key={model} className={css.modelGroup}>
+                  {label !== '' && <div className={css.modelName}>{label}</div>}
+                  <div className={css.row}>
+                    <span className={css.label}>{t('panel.today')}</span>
+                    <span className={css.value}>{tokensText(todayTokens(byId, provider, model))}</span>
+                  </div>
+                  <div className={css.row}>
+                    <span className={css.label}>{t('panel.session')}</span>
+                    <span className={css.value}>{tokensText(currentTokens(byId, currentId, provider, model))}</span>
+                  </div>
+                </div>
+              )
+            })}
           </section>
         )
       })}

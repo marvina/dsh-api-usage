@@ -37,17 +37,27 @@ const SESSIONS: SessionListState = {
       updatedAt: Date.now(),
       projectionValues: {
         providerTokenUsage: {
-          deepseek: {
-            uncachedInputTokens: 10,
-            outputTokens: 20,
-            cacheReadTokens: 5,
-            cacheWriteTokens: 3,
+          'deepseek-official': {
+            flash: {
+              uncachedInputTokens: 10,
+              outputTokens: 20,
+              cacheReadTokens: 5,
+              cacheWriteTokens: 3,
+            },
+            pro: {
+              uncachedInputTokens: 1,
+              outputTokens: 2,
+              cacheReadTokens: 0,
+              cacheWriteTokens: 0,
+            },
           },
           openai: {
-            uncachedInputTokens: 100,
-            outputTokens: 50,
-            cacheReadTokens: 25,
-            cacheWriteTokens: 0,
+            'gpt-4o': {
+              uncachedInputTokens: 100,
+              outputTokens: 50,
+              cacheReadTokens: 25,
+              cacheWriteTokens: 0,
+            },
           },
         },
       },
@@ -67,6 +77,7 @@ function panelProps(overrides: Partial<ApiUsagePanelProps> = {}): ApiUsagePanelP
     useEnabled: selectorHook(true),
     useBalance: selectorHook<ApiUsageBalanceResult | null>(BALANCE),
     useProviders: selectorHook({}),
+    useModels: selectorHook({}),
     refreshBalance: vi.fn(),
     t,
     ...overrides,
@@ -74,18 +85,22 @@ function panelProps(overrides: Partial<ApiUsagePanelProps> = {}): ApiUsagePanelP
 }
 
 describe('ApiUsagePanel', () => {
-  it('renders balances and usage independently for each provider', () => {
+  it('renders balances and usage independently for each provider and model', () => {
     render(<ApiUsagePanel {...panelProps()} />)
     expect(screen.getByText('API 用量')).toBeTruthy()
     expect(screen.getByText('DeepSeek')).toBeTruthy()
     expect(screen.getByText('OpenAI')).toBeTruthy()
+    expect(screen.getByText('Flash')).toBeTruthy()
+    expect(screen.getByText('Pro')).toBeTruthy()
+    expect(screen.getByText('Gpt-4o')).toBeTruthy()
     expect(screen.getAllByText('API 余额')).toHaveLength(2)
     expect(screen.getByText('¥110.00')).toBeTruthy()
     expect(screen.getByText('暂不支持')).toBeTruthy()
-    expect(screen.getAllByText('今日用量')).toHaveLength(2)
+    expect(screen.getAllByText('今日用量')).toHaveLength(3)
     expect(screen.getAllByText('38 tokens')).toHaveLength(2)
+    expect(screen.getAllByText('3 tokens')).toHaveLength(2)
     expect(screen.getAllByText('175 tokens')).toHaveLength(2)
-    expect(screen.getAllByText('本次对话用量')).toHaveLength(2)
+    expect(screen.getAllByText('本次对话用量')).toHaveLength(3)
   })
 
   it('falls back to legacy token usage as DeepSeek usage', () => {
@@ -121,22 +136,28 @@ describe('ApiUsagePanel', () => {
           projectionValues: {
             providerTokenUsage: {
               deepseek: {
-                uncachedInputTokens: 10,
-                outputTokens: 20,
-                cacheReadTokens: 5,
-                cacheWriteTokens: 3,
+                flash: {
+                  uncachedInputTokens: 10,
+                  outputTokens: 20,
+                  cacheReadTokens: 5,
+                  cacheWriteTokens: 3,
+                },
               },
               'deepseek-official': {
-                uncachedInputTokens: 30,
-                outputTokens: 10,
-                cacheReadTokens: 2,
-                cacheWriteTokens: 0,
+                pro: {
+                  uncachedInputTokens: 30,
+                  outputTokens: 10,
+                  cacheReadTokens: 2,
+                  cacheWriteTokens: 0,
+                },
               },
               openai: {
-                uncachedInputTokens: 100,
-                outputTokens: 50,
-                cacheReadTokens: 25,
-                cacheWriteTokens: 0,
+                'gpt-4o': {
+                  uncachedInputTokens: 100,
+                  outputTokens: 50,
+                  cacheReadTokens: 25,
+                  cacheWriteTokens: 0,
+                },
               },
             },
           },
@@ -147,7 +168,10 @@ describe('ApiUsagePanel', () => {
     render(<ApiUsagePanel {...panelProps({ useSessions: selectorHook(mergedSessions) })} />)
     expect(screen.getAllByText('DeepSeek')).toHaveLength(1)
     expect(screen.getByText('OpenAI')).toBeTruthy()
-    expect(screen.getAllByText('80 tokens')).toHaveLength(2)
+    expect(screen.getByText('Flash')).toBeTruthy()
+    expect(screen.getByText('Pro')).toBeTruthy()
+    expect(screen.getAllByText('38 tokens')).toHaveLength(2)
+    expect(screen.getAllByText('42 tokens')).toHaveLength(2)
     expect(screen.getAllByText('175 tokens')).toHaveLength(2)
   })
 
@@ -156,6 +180,12 @@ describe('ApiUsagePanel', () => {
     expect(screen.getByText('My Custom OpenAI')).toBeTruthy()
     expect(screen.queryByText('OpenAI')).toBeNull()
     expect(screen.getByText('DeepSeek')).toBeTruthy()
+  })
+
+  it('prefers the configured model display name over the model id', () => {
+    render(<ApiUsagePanel {...panelProps({ useModels: selectorHook({ 'deepseek-official': { flash: 'DeepSeek Flash' } }) })} />)
+    expect(screen.getByText('DeepSeek Flash')).toBeTruthy()
+    expect(screen.queryByText('Flash')).toBeNull()
   })
 
   it('renders nothing while disabled', () => {

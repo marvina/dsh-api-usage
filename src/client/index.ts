@@ -65,6 +65,8 @@ export function apply(ctx: ClientContext): void {
 
   const connection = ctx.get('connection') as ConnectionHandle
   const providers = createSnapshotStore<Record<string, string>>({})
+  const modelNames = createSnapshotStore<Record<string, Record<string, string>>>({})
+
   const refreshProviders = async (): Promise<void> => {
     try {
       const response = await connection.api.llm.providers({})
@@ -78,14 +80,37 @@ export function apply(ctx: ClientContext): void {
       // Keep the last known names when the directory cannot be read.
     }
   }
-  void refreshProviders()
+
+  const refreshModels = async (): Promise<void> => {
+    try {
+      const response = await connection.api.llm.models({})
+      if (!response.result.ok) return
+      const names: Record<string, Record<string, string>> = {}
+      for (const group of response.result.value.groups) {
+        const groupNames: Record<string, string> = {}
+        for (const model of group.models) {
+          if (model.name.length > 0) groupNames[model.id] = model.name
+        }
+        if (Object.keys(groupNames).length > 0) names[group.id] = groupNames
+      }
+      modelNames.set(names)
+    } catch {
+      // Keep the last known names when the catalog cannot be read.
+    }
+  }
+
+  const refreshMetadata = (): void => {
+    void refreshProviders()
+    void refreshModels()
+  }
+  refreshMetadata()
   ctx.effect(() => {
     const disposers = [
-      ctx.remote.$on('llm/adapters-updated', () => { void refreshProviders() }),
-      ctx.remote.$on('settings/document-updated', () => { void refreshProviders() }),
+      ctx.remote.$on('llm/adapters-updated', refreshMetadata),
+      ctx.remote.$on('settings/document-updated', refreshMetadata),
     ]
     return () => { for (const dispose of disposers) dispose() }
-  }, 'ui-api-usage: provider names')
+  }, 'ui-api-usage: provider/model names')
 
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
     name: 'sidebar.footer.action',
@@ -93,7 +118,7 @@ export function apply(ctx: ClientContext): void {
     order: -10,
     locale: NS,
     inject: (): ApiUsagePanelInjected => ({
-      hooks: { enabled: policy.enabled, balance: policy.balance, providers },
+      hooks: { enabled: policy.enabled, balance: policy.balance, providers, models: modelNames },
       refreshBalance: () => { void policy.refreshBalance() },
     }),
   }, ApiUsagePanel))

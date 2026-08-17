@@ -12,8 +12,8 @@ export interface ProviderTokenBuckets {
   cacheWriteTokens: number
 }
 
-/** Cumulative token buckets keyed by normalized provider id. */
-export type ProviderTokenUsageProjection = Readonly<Record<string, ProviderTokenBuckets>>
+/** Cumulative token buckets keyed by normalized provider id, then model id. */
+export type ProviderTokenUsageProjection = Readonly<Record<string, Readonly<Record<string, ProviderTokenBuckets>>>>
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionMap {
@@ -26,12 +26,14 @@ interface UsageSample {
   turn: number
   step: number
   provider: string
+  model: string
   buckets: ProviderTokenBuckets
 }
 
 interface ProviderTokenUsageState {
   provider?: string
-  totals: Record<string, ProviderTokenBuckets>
+  model?: string
+  totals: Record<string, Record<string, ProviderTokenBuckets>>
   last: UsageSample | null
 }
 
@@ -42,7 +44,7 @@ const bucketsSchema = z.object({
   cacheWriteTokens: z.number().int().nonnegative(),
 }).strict()
 
-const projectionSchema = z.record(z.string(), bucketsSchema)
+const projectionSchema = z.record(z.string(), z.record(z.string(), bucketsSchema))
 
 const zeroBuckets = (): ProviderTokenBuckets => ({
   uncachedInputTokens: 0,
@@ -51,10 +53,30 @@ const zeroBuckets = (): ProviderTokenBuckets => ({
   cacheWriteTokens: 0,
 })
 
+function ensureModel(
+  totals: Record<string, Record<string, ProviderTokenBuckets>>,
+  provider: string,
+  model: string,
+): Record<string, Record<string, ProviderTokenBuckets>> {
+  const providerTotals = totals[provider]
+  if (providerTotals != null && providerTotals[model] != null) return totals
+  return {
+    ...totals,
+    [provider]: {
+      ...(providerTotals ?? {}),
+      [model]: zeroBuckets(),
+    },
+  }
+}
+
 function providerId(provider: string): string {
   const normalized = provider.trim().toLowerCase()
   if (normalized === 'deepseek' || normalized === 'deepseek-official') return 'deepseek-official'
   return normalized || 'unknown'
+}
+
+function modelId(model: string): string {
+  return model.trim() || 'unknown'
 }
 
 function usageOf(event: SessionEvent) {
@@ -99,6 +121,19 @@ function addReplacing(
   }
 }
 
+function replaceModelBucket(
+  providerTotals: Record<string, ProviderTokenBuckets> | undefined,
+  model: string,
+  previous: ProviderTokenBuckets | undefined,
+  next: ProviderTokenBuckets | undefined,
+): Record<string, ProviderTokenBuckets> {
+  const total = providerTotals?.[model] ?? zeroBuckets()
+  return {
+    ...(providerTotals ?? {}),
+    [model]: addReplacing(total, previous, next),
+  }
+}
+
 /** Session projection that preserves the provider attribution token-meter drops. */
 export const providerTokenUsageProjectionDefinition: ProjectionDefinition<
   'providerTokenUsage', ProviderTokenUsageState
@@ -109,49 +144,49 @@ export const providerTokenUsageProjectionDefinition: ProjectionDefinition<
   apply: (state, event) => {
     if (event.type === 'request/header') {
       const provider = providerId(event.data.header.config.provider)
-      if (provider === state.provider && state.totals[provider] != null) return state
+      const model = modelId(event.data.header.config.model)
+      if (provider === state.provider && model === state.model && state.totals[provider]?.[model] != null) return state
       return {
         ...state,
         provider,
-        totals: state.totals[provider] == null
-          ? { ...state.totals, [provider]: zeroBuckets() }
-          : state.totals,
+        model,
+        totals: ensureModel(state.totals, provider, model),
       }
     }
     if (event.type === 'request/context') {
       const provider = providerId(event.data.provider)
-      if (provider === state.provider && state.totals[provider] != null) return state
+      const model = modelId(event.data.model)
+      if (provider === state.provider && model === state.model && state.totals[provider]?.[model] != null) return state
       return {
         ...state,
         provider,
-        totals: state.totals[provider] == null
-          ? { ...state.totals, [provider]: zeroBuckets() }
-          : state.totals,
+        model,
+        totals: ensureModel(state.totals, provider, model),
       }
     }
 
     const sample = usageOf(event)
     if (sample == null) return state
     const provider = state.provider ?? 'unknown'
+    const model = state.model ?? 'unknown'
     const buckets = bucketsFrom(sample.usage)
     const previous = state.last?.turn === sample.turn && state.last.step === sample.step
       ? state.last
       : null
-    if (previous?.provider === provider && equalBuckets(previous.buckets, buckets)) return state
+    if (previous?.provider === provider && previous?.model === model && equalBuckets(previous.buckets, buckets)) return state
 
     const totals = { ...state.totals }
     if (previous != null) {
-      totals[previous.provider] = addReplacing(
-        totals[previous.provider] ?? zeroBuckets(), previous.buckets, undefined,
-      )
+      totals[previous.provider] = replaceModelBucket(totals[previous.provider], previous.model, previous.buckets, undefined)
     }
-    totals[provider] = addReplacing(totals[provider] ?? zeroBuckets(), undefined, buckets)
+    totals[provider] = replaceModelBucket(totals[provider], model, undefined, buckets)
     return {
       provider,
+      model,
       totals,
-      last: { turn: sample.turn, step: sample.step, provider, buckets },
+      last: { turn: sample.turn, step: sample.step, provider, model, buckets },
     }
   },
   view: state => state.totals,
-  stateVersion: 1,
+  stateVersion: 2,
 }
