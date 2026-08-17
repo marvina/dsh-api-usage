@@ -7,14 +7,25 @@ An installable [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harnes
 ## Install / uninstall
 
 ```sh
-dsh plugin --profile web add @marvina/dsh-api-usage
+# from git (after pushing this repo)
+dsh plugin --profile web add github:<user>/dsh-api-usage
 dsh web
 
 # uninstall
-dsh plugin --profile web remove @marvina/dsh-api-usage
+dsh plugin --profile web remove dsh-api-usage
 ```
 
 The package declares `dsh.bundle.patch`, so `dsh plugin add` reconciles it into the profile's bundle stack automatically.
+It also declares a `prepare` script, so a git install builds `lib/` automatically;
+pnpm may ask you to allow that build script — add the key it prints under
+`allowBuilds` in `~/.dsh/profiles/web/pnpm-workspace.yaml` and re-run.
+
+For a local checkout:
+
+```sh
+cd /path/to/dsh-api-usage
+dsh plugin --profile web add link:.
+```
 
 ## How it works
 
@@ -27,6 +38,17 @@ The package declares `dsh.bundle.patch`, so `dsh plugin add` reconciles it into 
 pnpm install
 pnpm run build
 ```
+
+## Development
+
+```sh
+pnpm run watch
+```
+
+`tsdown --watch` rebuilds `lib/` as you edit `src/`. While `dsh web` is open,
+browser-side changes (`src/client/*`) hot-reload automatically. Host-side changes
+(`src/index.ts`, `src/balance.ts`, `src/settings.ts`, `src/provider-usage-projection.ts`)
+still require restarting `dsh web` after the rebuild.
 
 ## License
 

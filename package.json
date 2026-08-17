@@ -1,5 +1,5 @@
 {
-  "name": "@marvina/dsh-api-usage",
+  "name": "dsh-api-usage",
   "description": "Installable DeepSeek Harness plugin: sidebar-foot API balance and token usage panel with a settings toggle",
   "version": "0.1.0",
   "license": "MIT",
@@ -45,7 +45,9 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && tsdown",
+    "watch": "tsdown --watch",
     "prepublishOnly": "pnpm run build",
+    "prepare": "pnpm run build",
     "test": "vitest run"
   },
   "peerDependencies": {

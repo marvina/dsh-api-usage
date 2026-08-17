@@ -7,14 +7,25 @@
 ## 安装 / 卸载
 
 ```sh
-dsh plugin --profile web add @marvina/dsh-api-usage
+# 从 git 安装（push 之后）
+dsh plugin --profile web add github:<user>/dsh-api-usage
 dsh web
 
 # 卸载
-dsh plugin --profile web remove @marvina/dsh-api-usage
+dsh plugin --profile web remove dsh-api-usage
 ```
 
 该包声明了 `dsh.bundle.patch`，`dsh plugin add` 会自动把它纳入 profile 的 bundle 栈。
+它同时声明了 `prepare` 脚本，因此从 git 安装时会自动构建 `lib/`；
+pnpm 可能会要求你允许该构建脚本——把 pnpm 打印的 key 加到
+`~/.dsh/profiles/web/pnpm-workspace.yaml` 的 `allowBuilds` 下再重跑即可。
+
+本地 checkout 安装：
+
+```sh
+cd /path/to/dsh-api-usage
+dsh plugin --profile web add link:.
+```
 
 ## 工作原理
 
@@ -27,6 +38,17 @@ dsh plugin --profile web remove @marvina/dsh-api-usage
 pnpm install
 pnpm run build
 ```
+
+## 开发
+
+```sh
+pnpm run watch
+```
+
+`tsdown --watch` 会在你修改 `src/` 时自动重编 `lib/`。保持 `dsh web` 打开，
+浏览器侧改动（`src/client/*`）会自动热更新。主机侧改动
+（`src/index.ts`、`src/balance.ts`、`src/settings.ts`、`src/provider-usage-projection.ts`）
+仍需在重编后重启 `dsh web`。
 
 ## License
 

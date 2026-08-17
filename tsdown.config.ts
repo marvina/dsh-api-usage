@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { basename, dirname, resolve } from 'node:path'
 import { transform } from 'lightningcss'
 
-const PLUGIN_ID = '@deepseek-ai/dsh-client-ui-api-usage'
+const PLUGIN_ID = 'dsh-api-usage'
 
 /** The module specifiers the dsh shell shares into the frozen module table. */
 const PLATFORM_MODULES = [
