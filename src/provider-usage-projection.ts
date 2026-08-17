@@ -52,7 +52,9 @@ const zeroBuckets = (): ProviderTokenBuckets => ({
 })
 
 function providerId(provider: string): string {
-  return provider.trim().toLowerCase() || 'unknown'
+  const normalized = provider.trim().toLowerCase()
+  if (normalized === 'deepseek' || normalized === 'deepseek-official') return 'deepseek-official'
+  return normalized || 'unknown'
 }
 
 function usageOf(event: SessionEvent) {

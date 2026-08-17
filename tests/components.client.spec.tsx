@@ -111,6 +111,45 @@ describe('ApiUsagePanel', () => {
     expect(screen.getAllByText('38 tokens')).toHaveLength(2)
   })
 
+  it('merges legacy deepseek and official deepseek-official usage into one group', () => {
+    const mergedSessions = {
+      ...SESSIONS,
+      byId: {
+        s1: {
+          ...SESSIONS.byId.s1,
+          projectionValues: {
+            providerTokenUsage: {
+              deepseek: {
+                uncachedInputTokens: 10,
+                outputTokens: 20,
+                cacheReadTokens: 5,
+                cacheWriteTokens: 3,
+              },
+              'deepseek-official': {
+                uncachedInputTokens: 30,
+                outputTokens: 10,
+                cacheReadTokens: 2,
+                cacheWriteTokens: 0,
+              },
+              openai: {
+                uncachedInputTokens: 100,
+                outputTokens: 50,
+                cacheReadTokens: 25,
+                cacheWriteTokens: 0,
+              },
+            },
+          },
+        },
+      },
+    } as unknown as SessionListState
+
+    render(<ApiUsagePanel {...panelProps({ useSessions: selectorHook(mergedSessions) })} />)
+    expect(screen.getAllByText('DeepSeek')).toHaveLength(1)
+    expect(screen.getByText('OpenAI')).toBeTruthy()
+    expect(screen.getAllByText('80 tokens')).toHaveLength(2)
+    expect(screen.getAllByText('175 tokens')).toHaveLength(2)
+  })
+
   it('renders nothing while disabled', () => {
     const { container } = render(<ApiUsagePanel {...panelProps({ useEnabled: selectorHook(false) })} />)
     expect(container.firstChild).toBeNull()

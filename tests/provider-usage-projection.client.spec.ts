@@ -35,13 +35,13 @@ const assistantUsage = (
 describe('providerTokenUsageProjectionDefinition', () => {
   it('attributes usage to the provider active for each request', () => {
     let state = projection.init()
-    state = projection.apply(state, header('deepseek'))
+    state = projection.apply(state, header('deepseek-official'))
     state = projection.apply(state, assistantUsage(1, 1, 10, 5))
     state = projection.apply(state, header('openai'))
     state = projection.apply(state, assistantUsage(2, 1, 20, 8))
 
     expect(projection.view(state)).toEqual({
-      deepseek: {
+      'deepseek-official': {
         uncachedInputTokens: 10,
         outputTokens: 5,
         cacheReadTokens: 0,
@@ -58,13 +58,30 @@ describe('providerTokenUsageProjectionDefinition', () => {
 
   it('replaces a streamed sample with the final usage for the same step', () => {
     let state = projection.init()
-    state = projection.apply(state, header('deepseek'))
+    state = projection.apply(state, header('deepseek-official'))
     state = projection.apply(state, usageChunk(1, 1, 10, 2))
     state = projection.apply(state, assistantUsage(1, 1, 12, 5))
 
-    expect(projection.view(state).deepseek).toEqual({
+    expect(projection.view(state)['deepseek-official']).toEqual({
       uncachedInputTokens: 12,
       outputTokens: 5,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+    })
+  })
+
+  it('normalizes legacy and official DeepSeek provider ids into one key', () => {
+    let state = projection.init()
+    state = projection.apply(state, header('deepseek'))
+    state = projection.apply(state, assistantUsage(1, 1, 10, 5))
+    state = projection.apply(state, header('deepseek-official'))
+    state = projection.apply(state, assistantUsage(2, 1, 20, 8))
+
+    const view = projection.view(state)
+    expect(Object.keys(view)).toEqual(['deepseek-official'])
+    expect(view['deepseek-official']).toEqual({
+      uncachedInputTokens: 30,
+      outputTokens: 13,
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
     })

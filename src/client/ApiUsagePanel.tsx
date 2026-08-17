@@ -46,6 +46,21 @@ function tokenTotal(buckets: ProviderTokenBuckets | undefined): number | null {
     + buckets.cacheReadTokens + buckets.cacheWriteTokens
 }
 
+function addBuckets(left: ProviderTokenBuckets, right: ProviderTokenBuckets): ProviderTokenBuckets {
+  return {
+    uncachedInputTokens: left.uncachedInputTokens + right.uncachedInputTokens,
+    outputTokens: left.outputTokens + right.outputTokens,
+    cacheReadTokens: left.cacheReadTokens + right.cacheReadTokens,
+    cacheWriteTokens: left.cacheWriteTokens + right.cacheWriteTokens,
+  }
+}
+
+function canonicalProvider(provider: string): string {
+  return provider === 'deepseek' || provider === 'deepseek-official'
+    ? 'deepseek-official'
+    : provider
+}
+
 function isSameDay(ts: number): boolean {
   const d = new Date(ts)
   const now = new Date()
@@ -66,10 +81,17 @@ type SessionRow = NonNullable<SessionListState['byId'][SessionId]>
 function usageOf(row: SessionRow | undefined): ProviderTokenUsageProjection {
   const values = row?.projectionValues
   const byProvider = values?.providerTokenUsage as ProviderTokenUsageProjection | undefined
-  if (byProvider != null && Object.keys(byProvider).length > 0) return byProvider
+  if (byProvider != null && Object.keys(byProvider).length > 0) {
+    const merged: Record<string, ProviderTokenBuckets> = {}
+    for (const [provider, buckets] of Object.entries(byProvider)) {
+      const key = canonicalProvider(provider)
+      merged[key] = merged[key] == null ? buckets : addBuckets(merged[key], buckets)
+    }
+    return merged
+  }
 
   const legacy = values?.tokenUsage as ProviderTokenBuckets | undefined
-  return legacy == null ? {} : { deepseek: legacy }
+  return legacy == null ? {} : { 'deepseek-official': legacy }
 }
 
 function todayTokens(byId: SessionListState['byId'], provider: string): number | null {
@@ -90,7 +112,7 @@ function currentTokens(
 
 function providerName(provider: string): string {
   const names: Readonly<Record<string, string>> = {
-    deepseek: 'DeepSeek',
+    'deepseek-official': 'DeepSeek',
     openai: 'OpenAI',
     anthropic: 'Anthropic',
     google: 'Google',
@@ -99,15 +121,15 @@ function providerName(provider: string): string {
 }
 
 function providersIn(byId: SessionListState['byId']): string[] {
-  const providers = new Set<string>(['deepseek'])
+  const providers = new Set<string>(['deepseek-official'])
   for (const row of Object.values(byId)) {
     for (const [provider, buckets] of Object.entries(usageOf(row))) {
       if ((tokenTotal(buckets) ?? 0) > 0) providers.add(provider)
     }
   }
   return [...providers].sort((left, right) => {
-    if (left === 'deepseek') return -1
-    if (right === 'deepseek') return 1
+    if (left === 'deepseek-official') return -1
+    if (right === 'deepseek-official') return 1
     if (left === 'openai') return -1
     if (right === 'openai') return 1
     return providerName(left).localeCompare(providerName(right))
@@ -147,7 +169,7 @@ export function ApiUsagePanel({
     <div className={css.panel}>
       <div className={css.title}>{t('panel.title')}</div>
       {providersIn(byId).map((provider, index) => {
-        const isDeepSeek = provider === 'deepseek'
+        const isDeepSeek = provider === 'deepseek-official'
         const rows = [
           {
             key: 'balance',
