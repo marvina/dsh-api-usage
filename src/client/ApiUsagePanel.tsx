@@ -19,6 +19,8 @@ export interface ApiUsagePanelInjected {
     enabled: SnapshotStore<boolean>
     /** Latest DeepSeek balance result; null until the first refresh settles. */
     balance: SnapshotStore<ApiUsageBalanceResult | null>
+    /** Configured provider display names, keyed by provider route id. */
+    providers: SnapshotStore<Record<string, string>>
   }
   /** Trigger one DeepSeek balance refresh. */
   refreshBalance: () => void
@@ -120,7 +122,15 @@ function providerName(provider: string): string {
   return names[provider] ?? provider.replace(/(^|[-_ ])([a-z])/g, (_, space, char: string) => `${space}${char.toUpperCase()}`)
 }
 
-function providersIn(byId: SessionListState['byId']): string[] {
+function displayNameOf(provider: string, names: Readonly<Record<string, string>>): string {
+  const configured = names[provider]
+  return configured != null && configured.length > 0 ? configured : providerName(provider)
+}
+
+function providersIn(
+  byId: SessionListState['byId'],
+  names: Readonly<Record<string, string>>,
+): string[] {
   const providers = new Set<string>(['deepseek-official'])
   for (const row of Object.values(byId)) {
     for (const [provider, buckets] of Object.entries(usageOf(row))) {
@@ -132,7 +142,7 @@ function providersIn(byId: SessionListState['byId']): string[] {
     if (right === 'deepseek-official') return 1
     if (left === 'openai') return -1
     if (right === 'openai') return 1
-    return providerName(left).localeCompare(providerName(right))
+    return displayNameOf(left, names).localeCompare(displayNameOf(right, names))
   })
 }
 
@@ -142,10 +152,11 @@ function tokensText(tokens: number | null): string {
 
 /** Render the API usage panel, grouped by each provider observed in session usage. */
 export function ApiUsagePanel({
-  wide, useSessions, useEnabled, useBalance, refreshBalance, t,
+  wide, useSessions, useEnabled, useBalance, useProviders, refreshBalance, t,
 }: ApiUsagePanelProps) {
   const enabled = useEnabled(s => s)
   const balance = useBalance(s => s)
+  const providers = useProviders(s => s)
   const currentId = useSessions(s => s.current)
   const byId = useSessions(s => s.byId)
 
@@ -168,7 +179,7 @@ export function ApiUsagePanel({
   return (
     <div className={css.panel}>
       <div className={css.title}>{t('panel.title')}</div>
-      {providersIn(byId).map((provider, index) => {
+      {providersIn(byId, providers).map((provider, index) => {
         const isDeepSeek = provider === 'deepseek-official'
         const rows = [
           {
@@ -189,7 +200,7 @@ export function ApiUsagePanel({
         ]
         return (
           <section key={provider} className={index === 0 ? css.provider : `${css.provider} ${css.providerDivider}`}>
-            <div className={css.providerName}>{providerName(provider)}</div>
+            <div className={css.providerName}>{displayNameOf(provider, providers)}</div>
             {rows.map(row => (
               <div key={row.key} className={css.row}>
                 <span className={css.label}>{row.label}</span>

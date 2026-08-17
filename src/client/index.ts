@@ -5,9 +5,11 @@
  * balance route; the toggle owns the durable `ui-api-usage` section.
  */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import {
+  createSnapshotStore, type ClientContext,
+} from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: the ctx.remote Context merge for `inject: ['remote']` (settings scope).
-import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls ctx.locale into this program.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: the settings slots plus the ctx.settingsScope Context merge.
@@ -61,13 +63,37 @@ export function apply(ctx: ClientContext): void {
   }
   const policy = new ApiUsagePolicy(host, loadBalance)
 
+  const connection = ctx.get('connection') as ConnectionHandle
+  const providers = createSnapshotStore<Record<string, string>>({})
+  const refreshProviders = async (): Promise<void> => {
+    try {
+      const response = await connection.api.llm.providers({})
+      if (!response.result.ok) return
+      const names: Record<string, string> = {}
+      for (const provider of response.result.value.providers) {
+        if (provider.displayName.length > 0) names[provider.provider] = provider.displayName
+      }
+      providers.set(names)
+    } catch {
+      // Keep the last known names when the directory cannot be read.
+    }
+  }
+  void refreshProviders()
+  ctx.effect(() => {
+    const disposers = [
+      ctx.remote.$on('llm/adapters-updated', () => { void refreshProviders() }),
+      ctx.remote.$on('settings/document-updated', () => { void refreshProviders() }),
+    ]
+    return () => { for (const dispose of disposers) dispose() }
+  }, 'ui-api-usage: provider names')
+
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
     name: 'sidebar.footer.action',
     id: 'api-usage',
     order: -10,
     locale: NS,
     inject: (): ApiUsagePanelInjected => ({
-      hooks: { enabled: policy.enabled, balance: policy.balance },
+      hooks: { enabled: policy.enabled, balance: policy.balance, providers },
       refreshBalance: () => { void policy.refreshBalance() },
     }),
   }, ApiUsagePanel))

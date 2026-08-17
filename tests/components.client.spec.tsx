@@ -66,6 +66,7 @@ function panelProps(overrides: Partial<ApiUsagePanelProps> = {}): ApiUsagePanelP
     useSessions: selectorHook(SESSIONS),
     useEnabled: selectorHook(true),
     useBalance: selectorHook<ApiUsageBalanceResult | null>(BALANCE),
+    useProviders: selectorHook({}),
     refreshBalance: vi.fn(),
     t,
     ...overrides,
@@ -148,6 +149,13 @@ describe('ApiUsagePanel', () => {
     expect(screen.getByText('OpenAI')).toBeTruthy()
     expect(screen.getAllByText('80 tokens')).toHaveLength(2)
     expect(screen.getAllByText('175 tokens')).toHaveLength(2)
+  })
+
+  it('prefers the configured provider display name over the route id', () => {
+    render(<ApiUsagePanel {...panelProps({ useProviders: selectorHook({ openai: 'My Custom OpenAI' }) })} />)
+    expect(screen.getByText('My Custom OpenAI')).toBeTruthy()
+    expect(screen.queryByText('OpenAI')).toBeNull()
+    expect(screen.getByText('DeepSeek')).toBeTruthy()
   })
 
   it('renders nothing while disabled', () => {
