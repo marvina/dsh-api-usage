@@ -7,11 +7,11 @@ An installable [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harnes
 ## Install / uninstall
 
 ```sh
-dsh plugin --profile web add dsh-api-usage
+dsh plugin --profile web add @marvina/dsh-api-usage
 dsh web
 
 # uninstall
-dsh plugin --profile web remove dsh-api-usage
+dsh plugin --profile web remove @marvina/dsh-api-usage
 ```
 
 The package declares `dsh.bundle.patch`, so `dsh plugin add` reconciles it into the profile's bundle stack automatically.

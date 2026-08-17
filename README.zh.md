@@ -7,11 +7,11 @@
 ## 安装 / 卸载
 
 ```sh
-dsh plugin --profile web add dsh-api-usage
+dsh plugin --profile web add @marvina/dsh-api-usage
 dsh web
 
 # 卸载
-dsh plugin --profile web remove dsh-api-usage
+dsh plugin --profile web remove @marvina/dsh-api-usage
 ```
 
 该包声明了 `dsh.bundle.patch`，`dsh plugin add` 会自动把它纳入 profile 的 bundle 栈。

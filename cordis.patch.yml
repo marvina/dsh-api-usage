@@ -1,6 +1,6 @@
 # The API-usage surface: the sidebar-foot balance/usage panel plus the General
 # settings toggle. Installed as an out-of-tree profile bundle via
-# `dsh plugin --profile <name> add dsh-api-usage`.
+# `dsh plugin --profile <name> add @marvina/dsh-api-usage`.
 - insert:
     - id: api-usage
-      name: 'dsh-api-usage'
+      name: '@marvina/dsh-api-usage'
